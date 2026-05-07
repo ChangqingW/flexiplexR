@@ -54,6 +54,13 @@ segments_to_json <- function(segments, barcode_groups, params) {
   jsonlite::toJSON(list(barcode_parameters = bp), pretty = TRUE, auto_unbox = TRUE)
 }
 
+subsample_fastq <- function(in_path, out_path, n_reads) {
+  con <- if (grepl("\\.gz$", in_path, ignore.case = TRUE)) gzfile(in_path, "r") else file(in_path, "r")
+  on.exit(close(con))
+  lines <- readLines(con, n = 4L * n_reads)
+  writeLines(lines, out_path)
+}
+
 segments_to_r <- function(segments, barcode_groups) {
   lines <- "segments <- list(\n"
   for (i in seq_along(segments)) {
@@ -92,6 +99,31 @@ segments_to_r <- function(segments, barcode_groups) {
 }
 
 # ── UI ───────────────────────────────────────────────────────────────────────
+
+.preview_fastq   <- shiny::getShinyOption("rflexiplex_fastq",          NULL)
+.preview_bcs     <- shiny::getShinyOption("rflexiplex_barcodes_files", NULL)
+.preview_enabled <- !is.null(.preview_fastq) && !is.null(.preview_bcs)
+
+preview_tab <- tabPanel("Preview",
+  br(),
+  if (!.preview_enabled) {
+    helpText(
+      "Pass fastq and barcodes_files arguments to run_barcode_designer() ",
+      "to enable a demultiplex preview here."
+    )
+  } else tagList(
+    sliderInput("preview_n", "Reads to sample",
+                min = 100, max = 10000, value = 1000, step = 100),
+    actionButton("run_preview", "Run preview", class = "btn-primary"),
+    br(), br(),
+    uiOutput("preview_status"),
+    tableOutput("preview_counts"),
+    h5("Example demultiplexed read headers"),
+    verbatimTextOutput("preview_headers"),
+    h5("Example stats rows"),
+    tableOutput("preview_stats")
+  )
+)
 
 ui <- fluidPage(
   tags$head(
@@ -175,7 +207,8 @@ ui <- fluidPage(
           tabPanel("R code",
             br(),
             verbatimTextOutput("r_preview")
-          )
+          ),
+          preview_tab
         )
       )
     )
@@ -404,6 +437,93 @@ server <- function(input, output, session) {
   output$r_preview <- renderText({
     segments_to_r(segments(), barcode_groups())
   })
+
+  # ── Preview ───────────────────────────────────────────────────────────────
+  if (.preview_enabled) {
+    observeEvent(input$run_preview, {
+      output$preview_status <- renderUI(
+        div(style = "color:#555;", em("Running flexiplex on subsample..."))
+      )
+      tmp_fq    <- tempfile(fileext = ".fastq")
+      tmp_out   <- tempfile(fileext = ".fastq")
+      tmp_stats <- tempfile(fileext = ".tsv")
+      session$onSessionEnded(function() {
+        try(unlink(c(tmp_fq, tmp_out, tmp_stats)), silent = TRUE)
+      })
+
+      res <- tryCatch({
+        subsample_fastq(.preview_fastq, tmp_fq, input$preview_n)
+        seg_objs <- lapply(segments(), function(s) {
+          Rflexiplex::barcode_segment(
+            type    = s$type,
+            pattern = s$pattern,
+            name    = s$name,
+            bc_list = if (isTRUE(nzchar(s$bc_list_name))) s$bc_list_name else NA_character_,
+            group   = if (isTRUE(nzchar(s$group)))        s$group        else NA_character_,
+            buffer_size       = s$buffer_size,
+            max_edit_distance = s$max_edit_distance
+          )
+        })
+        grp_objs <- lapply(barcode_groups(), function(g) {
+          Rflexiplex::barcode_group(
+            name              = g$name,
+            bc_list_name      = g$bc_list_name,
+            max_edit_distance = g$max_edit_distance
+          )
+        })
+        Rflexiplex::find_barcode(
+          fastq                   = tmp_fq,
+          segments                = seg_objs,
+          barcode_groups          = grp_objs,
+          barcodes_files          = .preview_bcs,
+          max_flank_editdistance  = input$max_flank_editdistance,
+          reads_out               = tmp_out,
+          stats_out               = tmp_stats,
+          threads                 = 1,
+          TSO_seq                 = if (is.null(input$TSO_seq)) "" else input$TSO_seq,
+          TSO_prime               = input$TSO_prime,
+          strand                  = input$strand,
+          cutadapt_minimum_length = input$cutadapt_minimum_length,
+          full_length_only        = input$full_length_only
+        )
+      }, error = function(e) e)
+
+      if (inherits(res, "error")) {
+        output$preview_status <- renderUI(
+          div(style = "color:#c00;", strong("Error: "), res$message)
+        )
+        output$preview_counts  <- renderTable(NULL)
+        output$preview_headers <- renderText("")
+        output$preview_stats   <- renderTable(NULL)
+        return()
+      }
+
+      rc    <- res$read_counts
+      total <- as.integer(rc[["total reads"]])
+      demux <- as.integer(rc[["demultiplexed reads"]])
+      rate  <- if (total > 0) round(100 * demux / total, 2) else 0
+      output$preview_status <- renderUI(
+        div(style = "color:#2e7d32;", strong("Done. "),
+            sprintf("%d/%d reads demultiplexed (%.2f%%).", demux, total, rate))
+      )
+      output$preview_counts <- renderTable(
+        data.frame(metric = c(names(rc), "demux rate (%)"),
+                   value  = c(as.integer(rc), rate)),
+        striped = TRUE, rownames = FALSE
+      )
+
+      hdr_lines <- tryCatch(readLines(tmp_out, n = 20), error = function(e) character(0))
+      headers   <- if (length(hdr_lines) >= 1)
+        hdr_lines[seq(1, length(hdr_lines), by = 4)] else character(0)
+      output$preview_headers <- renderText(
+        if (length(headers)) paste(headers, collapse = "\n") else "(no demultiplexed reads)"
+      )
+
+      stats_df <- tryCatch(utils::head(read.delim(tmp_stats), 10),
+                           error = function(e) data.frame())
+      output$preview_stats <- renderTable(stats_df, striped = TRUE, rownames = FALSE)
+    })
+  }
 
   # ── Done ──────────────────────────────────────────────────────────────────
   observeEvent(input$done, {
