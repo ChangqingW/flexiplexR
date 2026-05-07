@@ -395,13 +395,13 @@ barcode_group <- function(name, bc_list_name, max_edit_distance = 2) {
 #' dir.create(outdir)
 #' bc_allow <- file.path(outdir, "bc_allow.tsv")
 #' R.utils::gunzip(
-#'   filename = system.file("extdata", "bc_allow.tsv.gz", package = "Rflexiplex"),
+#'   filename = system.file("extdata", "bc_allow.tsv.gz", package = "flexiplexR"),
 #'   destname = bc_allow, remove = FALSE
 #' )
 #'
 #' # Modern interface: define segments explicitly
 #' find_barcode(
-#'   fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "Rflexiplex"),
+#'   fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "flexiplexR"),
 #'   segments = list(
 #'     barcode_segment("FIXED",   "CTACACGACGCTCTTCCGATCT", "primer"),
 #'     barcode_segment("MATCHED", "NNNNNNNNNNNNNNNN", "CB",
@@ -580,13 +580,13 @@ convert_cellranger_bc <- function(bc_allow, bc_from, bc_to) {
 #' dir.create(outdir)
 #' fastq_dir <- tempfile()
 #' dir.create(fastq_dir)
-#' file.copy(system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "Rflexiplex"),
+#' file.copy(system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "flexiplexR"),
 #'   file.path(fastq_dir, "musc_rps24.fastq.gz"))
 #' sampled_lines <- readLines(file.path(fastq_dir, "musc_rps24.fastq.gz"), n = 400)
 #' writeLines(sampled_lines, file.path(fastq_dir, "copy.fastq"))
 #' bc_allow <- file.path(outdir, "bc_allow.tsv")
 #' R.utils::gunzip(
-#'   filename = system.file("extdata", "bc_allow.tsv.gz", package = "Rflexiplex"),
+#'   filename = system.file("extdata", "bc_allow.tsv.gz", package = "flexiplexR"),
 #'   destname = bc_allow, remove = FALSE
 #' )
 #' find_barcode(

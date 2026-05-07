@@ -100,8 +100,8 @@ segments_to_r <- function(segments, barcode_groups) {
 
 # ── UI ───────────────────────────────────────────────────────────────────────
 
-.preview_fastq   <- shiny::getShinyOption("rflexiplex_fastq",          NULL)
-.preview_bcs     <- shiny::getShinyOption("rflexiplex_barcodes_files", NULL)
+.preview_fastq   <- shiny::getShinyOption("flexiplexR_fastq",          NULL)
+.preview_bcs     <- shiny::getShinyOption("flexiplexR_barcodes_files", NULL)
 .preview_enabled <- !is.null(.preview_fastq) && !is.null(.preview_bcs)
 
 preview_tab <- tabPanel("Preview",
@@ -454,7 +454,7 @@ server <- function(input, output, session) {
       res <- tryCatch({
         subsample_fastq(.preview_fastq, tmp_fq, input$preview_n)
         seg_objs <- lapply(segments(), function(s) {
-          Rflexiplex::barcode_segment(
+          flexiplexR::barcode_segment(
             type    = s$type,
             pattern = s$pattern,
             name    = s$name,
@@ -465,13 +465,13 @@ server <- function(input, output, session) {
           )
         })
         grp_objs <- lapply(barcode_groups(), function(g) {
-          Rflexiplex::barcode_group(
+          flexiplexR::barcode_group(
             name              = g$name,
             bc_list_name      = g$bc_list_name,
             max_edit_distance = g$max_edit_distance
           )
         })
-        Rflexiplex::find_barcode(
+        flexiplexR::find_barcode(
           fastq                   = tmp_fq,
           segments                = seg_objs,
           barcode_groups          = grp_objs,

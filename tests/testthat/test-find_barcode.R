@@ -3,13 +3,13 @@ test_that("barcode_output_file_identical", {
   dir.create(outdir)
   bc_allow <- file.path(outdir, "bc_allow.tsv")
   R.utils::gunzip(
-    filename = system.file("extdata/bc_allow.tsv.gz", package = "Rflexiplex"),
+    filename = system.file("extdata/bc_allow.tsv.gz", package = "flexiplexR"),
     destname = bc_allow, remove = FALSE, overwrite = TRUE
   )
 
   find_barcode(
     max_bc_editdistance = 2, max_flank_editdistance = 8,
-    fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "Rflexiplex"),
+    fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "flexiplexR"),
     barcodes_file = bc_allow,
     reads_out = file.path(outdir, "out.fq"),
     stats_out = file.path(outdir, "stats.tsv"),
@@ -26,7 +26,7 @@ test_that("barcode_output_file_identical", {
     read.delim(file.path(outdir, "stats.tsv"))[, -1]
   )
   expect_identical(
-    readLines(system.file('extdata', 'fastq', 'demultiplexed.fq.gz', package = 'Rflexiplex')),
+    readLines(system.file('extdata', 'fastq', 'demultiplexed.fq.gz', package = 'flexiplexR')),
     readLines(file.path(outdir, "out.fq"), n = 40)
   )
 })
@@ -39,11 +39,11 @@ test_that("multiple fastq files as one sample", {
 
   bc_allow <- file.path(outdirx, "bc_allow.tsv")
   R.utils::gunzip(
-    filename = system.file("extdata/bc_allow.tsv.gz", package = "Rflexiplex"),
+    filename = system.file("extdata/bc_allow.tsv.gz", package = "flexiplexR"),
     destname = bc_allow, remove = FALSE, overwrite = TRUE
   )
   # split the fastq file
-  lines <- readLines(system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "Rflexiplex"))
+  lines <- readLines(system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "flexiplexR"))
   i <- 1
   while (length(lines) > 0) {
     writeLines(lines[1:400], file.path(fastq_dir, paste0("musc_rps24_", i, ".fastq")))
@@ -53,7 +53,7 @@ test_that("multiple fastq files as one sample", {
 
   x <- find_barcode(
     max_bc_editdistance = 2, max_flank_editdistance = 8,
-    fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "Rflexiplex"),
+    fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "flexiplexR"),
     barcodes_file = bc_allow,
     reads_out = file.path(outdirx, "out.fq"),
     stats_out = file.path(outdirx, "stats.tsv"),
@@ -94,13 +94,13 @@ test_that("reverse complement with strand = '-'", {
   dir.create(outdir)
   bc_allow <- file.path(outdir, "bc_allow.tsv")
   R.utils::gunzip(
-    filename = system.file("extdata/bc_allow.tsv.gz", package = "Rflexiplex"),
+    filename = system.file("extdata/bc_allow.tsv.gz", package = "flexiplexR"),
     destname = bc_allow, remove = FALSE, overwrite = TRUE
   )
 
   find_barcode(
     max_bc_editdistance = 2, max_flank_editdistance = 8,
-    fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "Rflexiplex"),
+    fastq = system.file("extdata", "fastq", "musc_rps24.fastq.gz", package = "flexiplexR"),
     barcodes_file = bc_allow,
     reads_out = file.path(outdir, "out.fq"),
     stats_out = file.path(outdir, "stats.tsv"),
@@ -121,7 +121,7 @@ test_that("reverse complement with strand = '-'", {
     paste(rev(chartr("ACGT", "TGCA", strsplit(s, "")[[1]])), collapse = "")
   }
   y <- readLines(
-    system.file('extdata', 'fastq', 'demultiplexed.fq.gz', package = 'Rflexiplex')
+    system.file('extdata', 'fastq', 'demultiplexed.fq.gz', package = 'flexiplexR')
   )[seq(2, 40, by = 4)] |>
     sapply(rc) |>
     unname()

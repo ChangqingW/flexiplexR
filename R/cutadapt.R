@@ -9,7 +9,7 @@
 #' @importFrom basilisk basiliskRun
 #' @export
 cutadapt <- function(args) {
-  basiliskRun(env = rflexiplex_env, fun = function(x) {
+  basiliskRun(env = flexiplexR_env, fun = function(x) {
     output <- base::system2("cutadapt", x, stdout = TRUE, stderr = "")
     return(output)
   }, x = args)

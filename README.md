@@ -1,4 +1,4 @@
-# Rflexiplex
+# flexiplexR
 
 R port of [flexiplex](https://davidsongroup.github.io/flexiplex/), with GUI barcode specification and demultiplex rate preview.
 
@@ -16,7 +16,7 @@ run_barcode_designer(fastq = "reads.fq.gz", barcodes_files = c(CB = "barcodes_al
 
 ```r
 # install.packages("devtools")
-devtools::install_github("ChangqingW/Rflexiplex")
+devtools::install_github("ChangqingW/flexiplexR")
 ```
 
 Requires a C++17 compiler and `Rhtslib`. On Bioconductor-supported platforms (Linux/macOS) the package builds with `R CMD INSTALL`.
@@ -24,7 +24,7 @@ Requires a C++17 compiler and `Rhtslib`. On Bioconductor-supported platforms (Li
 ## Quick start
 
 ```r
-library(Rflexiplex)
+library(flexiplexR)
 
 # Define a 10x 3' v3 read structure
 segments <- list(
@@ -50,6 +50,6 @@ find_barcode(fastq = "reads.fq.gz", segments = res$segments, barcodes_files = "b
 
 # Or load a JSON config:
 
-cfg <- read_barcode_config(system.file("extdata", "config_sclr_nanopore_3end.json", package = "Rflexiplex"))
+cfg <- read_barcode_config(system.file("extdata", "config_sclr_nanopore_3end.json", package = "flexiplexR"))
 find_barcode(fastq = "reads.fq.gz", segments = cfg$segments, barcodes_files = "barcodes_allow.tsv.gz", ...)
 ```

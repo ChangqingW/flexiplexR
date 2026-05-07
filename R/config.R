@@ -15,7 +15,7 @@
 #'
 #' @examples
 #' cfg_file <- system.file(
-#'   "extdata", "config_sclr_nanopore_3end.json", package = "Rflexiplex"
+#'   "extdata", "config_sclr_nanopore_3end.json", package = "flexiplexR"
 #' )
 #' bp <- read_barcode_config(cfg_file)
 #' str(bp$segments)

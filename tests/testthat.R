@@ -1,4 +1,4 @@
 library(testthat)
-library(Rflexiplex)
+library(flexiplexR)
 
-test_check("Rflexiplex")
+test_check("flexiplexR")

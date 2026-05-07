@@ -12,7 +12,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // flexiplex
 Rcpp::IntegerVector flexiplex(Rcpp::List r_segments, Rcpp::List r_barcode_groups, int max_flank_editdistance, Rcpp::StringVector reads_in, Rcpp::String reads_out, Rcpp::String stats_out, Rcpp::String bc_out, bool reverseCompliment, int n_threads);
-RcppExport SEXP _Rflexiplex_flexiplex(SEXP r_segmentsSEXP, SEXP r_barcode_groupsSEXP, SEXP max_flank_editdistanceSEXP, SEXP reads_inSEXP, SEXP reads_outSEXP, SEXP stats_outSEXP, SEXP bc_outSEXP, SEXP reverseComplimentSEXP, SEXP n_threadsSEXP) {
+RcppExport SEXP _flexiplexR_flexiplex(SEXP r_segmentsSEXP, SEXP r_barcode_groupsSEXP, SEXP max_flank_editdistanceSEXP, SEXP reads_inSEXP, SEXP reads_outSEXP, SEXP stats_outSEXP, SEXP bc_outSEXP, SEXP reverseComplimentSEXP, SEXP n_threadsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -31,11 +31,11 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_Rflexiplex_flexiplex", (DL_FUNC) &_Rflexiplex_flexiplex, 9},
+    {"_flexiplexR_flexiplex", (DL_FUNC) &_flexiplexR_flexiplex, 9},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_Rflexiplex(DllInfo *dll) {
+RcppExport void R_init_flexiplexR(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

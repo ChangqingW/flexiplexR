@@ -45,12 +45,12 @@
 #'   # With preview enabled using bundled fixtures
 #'   bc <- tempfile()
 #'   R.utils::gunzip(
-#'     system.file("extdata", "bc_allow.tsv.gz", package = "Rflexiplex"),
+#'     system.file("extdata", "bc_allow.tsv.gz", package = "flexiplexR"),
 #'     destname = bc, remove = FALSE
 #'   )
 #'   run_barcode_designer(
 #'     fastq          = system.file("extdata", "fastq", "musc_rps24.fastq.gz",
-#'                                  package = "Rflexiplex"),
+#'                                  package = "flexiplexR"),
 #'     barcodes_files = bc
 #'   )
 #' }
@@ -59,9 +59,9 @@
 run_barcode_designer <- function(port = NULL, host = "127.0.0.1",
                                  launch.browser = FALSE,
                                  fastq = NULL, barcodes_files = NULL) {
-  app_dir <- system.file("shiny", "barcode_designer", package = "Rflexiplex")
+  app_dir <- system.file("shiny", "barcode_designer", package = "flexiplexR")
   if (!nzchar(app_dir) || !dir.exists(app_dir)) {
-    stop("Could not find barcode designer Shiny app in the Rflexiplex package.")
+    stop("Could not find barcode designer Shiny app in the flexiplexR package.")
   }
   if (!is.null(fastq)) {
     stopifnot(length(fastq) == 1, is.character(fastq), file.exists(fastq))
@@ -77,8 +77,8 @@ run_barcode_designer <- function(port = NULL, host = "127.0.0.1",
   message("Press Ctrl+C to stop. Click 'Done' in the browser to return the configuration.")
 
   shiny::shinyOptions(
-    rflexiplex_fastq          = fastq,
-    rflexiplex_barcodes_files = barcodes_files
+    flexiplexR_fastq          = fastq,
+    flexiplexR_barcodes_files = barcodes_files
   )
   result <- shiny::runApp(app_dir, port = port, host = host, launch.browser = launch.browser)
   invisible(result)
