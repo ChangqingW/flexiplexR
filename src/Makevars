@@ -1,0 +1,24 @@
+CXX_STD = CXX17
+
+CPPFILES = $(wildcard \
+	*.cpp \
+	**/*.cpp \
+	**/*/*.cpp \
+)
+CFILES = $(wildcard \
+	*.c \
+	**/*.c \
+	**/*/*.c \
+)
+FILES = $(CFILES) $(CPPFILES)
+SOURCES = $(FILES)
+OBJECTS = $(CPPFILES:.cpp=.o) $(CFILES:.c=.o)
+
+RHTSLIB_LIBS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/Rscript" -e \
+	'Rhtslib::pkgconfig("PKG_LIBS")')
+RHTSLIB_CPPFLAGS=$(shell "${R_HOME}/bin${R_ARCH_BIN}/Rscript" -e \
+	'Rhtslib::pkgconfig("PKG_CPPFLAGS")')
+
+PKG_CPPFLAGS = -pthread $(RHTSLIB_CPPFLAGS)
+PKG_CXXFLAGS = -fno-lto
+PKG_LIBS = -pthread -lz -fno-lto $(RHTSLIB_LIBS)

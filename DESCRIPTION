@@ -1,0 +1,37 @@
+Package: Rflexiplex
+Title: Flexible Barcode Demultiplexing for Long-Read RNA-seq
+Version: 0.1.0
+Date: 2026-05-07
+Authors@R: c(
+    person("Changqing", "Wang", role = c("aut", "cre"), email = "wang.ch@wehi.edu.au"))
+Description: Provides flexible barcode demultiplexing for long-read RNA-seq data
+    using the flexiplex algorithm. Supports custom barcode segment definitions,
+    optional TSO trimming via cutadapt, JSON config loading, and a Shiny-based
+    GUI for interactive drag-and-drop barcode segment design.
+License: GPL (>= 3)
+Encoding: UTF-8
+Imports:
+    basilisk,
+    dplyr,
+    ggplot2,
+    httpuv,
+    jsonlite,
+    methods,
+    readr,
+    reticulate,
+    shiny,
+    sortable,
+    tidyr,
+    utils
+Suggests:
+    ggrastr,
+    R.utils,
+    testthat (>= 3.0.0)
+LinkingTo: Rcpp, Rhtslib
+SystemRequirements: GNU make, C++17
+Config/Bioconductor/UnsupportedPlatforms: windows
+Config/testthat/edition: 3
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.2.0)
+LazyLoad: yes
