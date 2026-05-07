@@ -2,7 +2,6 @@ library(shiny)
 library(sortable)
 library(jsonlite)
 
-# Segment type colours
 TYPE_COLORS <- c(
   FIXED         = "#9E9E9E",
   MATCHED       = "#42A5F5",
@@ -10,39 +9,47 @@ TYPE_COLORS <- c(
   MATCHED_SPLIT = "#FFA726"
 )
 
-# Default field values by type
 TYPE_DEFAULTS <- list(
-  FIXED         = list(name = "primer",  pattern = "CTACACGACGCTCTTCCGATCT", bc_list_name = "", group = "", buffer_size = 2, max_edit_distance = 2),
-  MATCHED       = list(name = "CB",      pattern = "NNNNNNNNNNNNNNNN",       bc_list_name = "CB", group = "", buffer_size = 5, max_edit_distance = 2),
-  RANDOM        = list(name = "UB",      pattern = "NNNNNNNNNNNN",           bc_list_name = "", group = "", buffer_size = 2, max_edit_distance = 2),
-  MATCHED_SPLIT = list(name = "BC1",     pattern = "NNNNNNNN",               bc_list_name = "", group = "CB", buffer_size = 2, max_edit_distance = 2)
+  FIXED         = list(name = "primer",  pattern = "CTACACGACGCTCTTCCGATCT", bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
+  MATCHED       = list(name = "CB",      pattern = "NNNNNNNNNNNNNNNN",       bc_list_name = "CB", group = "", buffer_size = 5L, max_edit_distance = 2L),
+  RANDOM        = list(name = "UB",      pattern = "NNNNNNNNNNNN",           bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
+  MATCHED_SPLIT = list(name = "BC1",     pattern = "NNNNNNNN",               bc_list_name = "", group = "CB", buffer_size = 2L, max_edit_distance = 2L)
 )
 
-make_segment_card <- function(seg, idx) {
-  col <- TYPE_COLORS[[seg$type]]
+# Card div — selection outline is applied by JS, not R
+make_segment_card <- function(seg) {
   tags$div(
-    class = "segment-card",
+    class      = "segment-card",
+    `data-uid` = as.character(seg$uid),
     style = paste0(
-      "background:", col, ";color:#fff;padding:8px 12px;margin:4px 0;",
-      "border-radius:6px;cursor:grab;font-family:monospace;font-size:13px;",
+      "background:", TYPE_COLORS[[seg$type]], ";color:#fff;",
+      "padding:8px 12px;margin:4px 0;border-radius:6px;",
+      "cursor:grab;font-family:monospace;font-size:13px;",
       "display:flex;align-items:center;gap:10px;"
     ),
-    tags$span(style = "font-weight:bold;min-width:100px;", seg$name),
-    tags$span(style = "opacity:0.85;min-width:60px;font-size:11px;", paste0("[", seg$type, "]")),
-    tags$span(style = "opacity:0.9;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", seg$pattern)
+    tags$span(style = "font-weight:bold;min-width:90px;",              seg$name),
+    tags$span(style = "opacity:0.85;min-width:70px;font-size:11px;",   paste0("[", seg$type, "]")),
+    tags$span(style = "opacity:0.9;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;",
+              seg$pattern)
   )
 }
 
+uid_to_idx <- function(segs, uid) {
+  idx <- which(vapply(segs, `[[`, 0L, "uid") == uid)
+  if (length(idx) == 0L) 1L else idx[[1L]]
+}
+
 segments_to_json <- function(segments, barcode_groups, params) {
+  clean <- lapply(segments, function(s) { s$uid <- NULL; s })
   bp <- list(
-    max_flank_editdistance = params$max_flank_editdistance,
-    strand                 = params$strand,
-    TSO_seq                = params$TSO_seq,
-    TSO_prime              = params$TSO_prime,
+    max_flank_editdistance  = params$max_flank_editdistance,
+    strand                  = params$strand,
+    TSO_seq                 = params$TSO_seq,
+    TSO_prime               = params$TSO_prime,
     cutadapt_minimum_length = params$cutadapt_minimum_length,
-    full_length_only       = params$full_length_only,
-    segments               = segments,
-    barcode_groups         = if (length(barcode_groups) == 0) list() else barcode_groups
+    full_length_only        = params$full_length_only,
+    segments                = clean,
+    barcode_groups          = if (length(barcode_groups) == 0) list() else barcode_groups
   )
   jsonlite::toJSON(list(barcode_parameters = bp), pretty = TRUE, auto_unbox = TRUE)
 }
@@ -50,41 +57,32 @@ segments_to_json <- function(segments, barcode_groups, params) {
 segments_to_r <- function(segments, barcode_groups) {
   lines <- "segments <- list(\n"
   for (i in seq_along(segments)) {
-    s <- segments[[i]]
+    s     <- segments[[i]]
     comma <- if (i < length(segments)) "," else ""
-    if (s$type == "FIXED") {
-      lines <- paste0(lines, sprintf(
+    lines <- paste0(lines, switch(s$type,
+      FIXED = sprintf(
         '  barcode_segment("FIXED", "%s", "%s")%s\n',
-        s$pattern, s$name, comma
-      ))
-    } else if (s$type == "MATCHED") {
-      lines <- paste0(lines, sprintf(
+        s$pattern, s$name, comma),
+      MATCHED = sprintf(
         '  barcode_segment("MATCHED", "%s", "%s", bc_list = "%s", buffer_size = %d, max_edit_distance = %d)%s\n',
-        s$pattern, s$name, s$bc_list_name, s$buffer_size, s$max_edit_distance, comma
-      ))
-    } else if (s$type == "RANDOM") {
-      lines <- paste0(lines, sprintf(
+        s$pattern, s$name, s$bc_list_name, s$buffer_size, s$max_edit_distance, comma),
+      RANDOM = sprintf(
         '  barcode_segment("RANDOM", "%s", "%s")%s\n',
-        s$pattern, s$name, comma
-      ))
-    } else if (s$type == "MATCHED_SPLIT") {
-      lines <- paste0(lines, sprintf(
+        s$pattern, s$name, comma),
+      MATCHED_SPLIT = sprintf(
         '  barcode_segment("MATCHED_SPLIT", "%s", "%s", group = "%s", buffer_size = %d, max_edit_distance = %d)%s\n',
-        s$pattern, s$name, s$group, s$buffer_size, s$max_edit_distance, comma
-      ))
-    }
+        s$pattern, s$name, s$group, s$buffer_size, s$max_edit_distance, comma)
+    ))
   }
   lines <- paste0(lines, ")\n\n")
-
   if (length(barcode_groups) > 0) {
     lines <- paste0(lines, "barcode_groups <- list(\n")
     for (i in seq_along(barcode_groups)) {
-      g <- barcode_groups[[i]]
+      g     <- barcode_groups[[i]]
       comma <- if (i < length(barcode_groups)) "," else ""
       lines <- paste0(lines, sprintf(
         '  barcode_group(name = "%s", bc_list_name = "%s", max_edit_distance = %d)%s\n',
-        g$name, g$bc_list_name, g$max_edit_distance, comma
-      ))
+        g$name, g$bc_list_name, g$max_edit_distance, comma))
     }
     lines <- paste0(lines, ")\n")
   } else {
@@ -93,38 +91,62 @@ segments_to_r <- function(segments, barcode_groups) {
   lines
 }
 
-# ── UI ──────────────────────────────────────────────────────────────────────
+# ── UI ───────────────────────────────────────────────────────────────────────
 
 ui <- fluidPage(
-  tags$head(tags$style(HTML("
-    body { font-family: sans-serif; }
-    .segment-card { user-select: none; }
-    .panel-heading { font-weight: bold; }
-    #segment_order .rank-list-item { padding: 0 !important; background: transparent !important; border: none !important; }
-    .nav-tabs { margin-bottom: 10px; }
-  "))),
-  titlePanel("Barcode Segment Designer"),
+  tags$head(
+    tags$style(HTML("
+      body { font-family: sans-serif; }
+      .segment-card { user-select: none; }
+      .title-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+      .nav-tabs   { margin-bottom: 10px; }
+    ")),
+    tags$script(HTML("
+      // Click a card → outline it and tell Shiny which uid is selected
+      $(document).on('click', '.segment-card', function() {
+        $('.segment-card').css('outline', '');
+        $(this).css('outline', '3px solid white');
+        var uid = parseInt($(this).attr('data-uid'));
+        if (!isNaN(uid)) Shiny.setInputValue('clicked_uid', uid, {priority: 'event'});
+      });
+
+      // After renderUI re-renders the card list, re-apply the outline to the selected card
+      Shiny.addCustomMessageHandler('highlightCard', function(uid) {
+        $('.segment-card').css('outline', '');
+        $('.segment-card[data-uid=\"' + uid + '\"]').css('outline', '3px solid white');
+      });
+    "))
+  ),
+
+  tags$div(class = "title-row",
+    tags$h2(style = "margin:0;", "Barcode Segment Designer"),
+    actionButton("done", "Done ✓", class = "btn-success btn-lg")
+  ),
+
   fluidRow(
-    # ── Left: Segment list (drag-and-drop) ────────────────────────────────
+    # ── Left: card list + groups ─────────────────────────────────────────
     column(5,
       wellPanel(
         h4("Read Structure"),
-        p(style = "color:#555;font-size:12px;", "Drag to reorder segments. Click a segment to edit."),
-        uiOutput("segment_rank_list"),
+        tags$p(style = "color:#555;font-size:12px;margin-bottom:6px;",
+          "Drag to reorder. Click a card to select for editing."),
+        # Cards rendered here; sortable_js is injected inside renderUI
+        uiOutput("segment_cards"),
+        br(),
         fluidRow(
-          column(6, selectInput("new_type", NULL,
+          column(7, selectInput("new_type", NULL,
             choices = c("FIXED", "MATCHED", "RANDOM", "MATCHED_SPLIT"), width = "100%")),
-          column(6, actionButton("add_segment", "Add Segment", class = "btn-primary", width = "100%"))
+          column(5, actionButton("add_segment", "Add", class = "btn-primary", width = "100%"))
         ),
         hr(),
         h4("Barcode Groups"),
-        p(style = "color:#555;font-size:12px;", "Required when using MATCHED_SPLIT segments."),
+        tags$p(style = "color:#555;font-size:12px;", "Required for MATCHED_SPLIT segments."),
         uiOutput("group_list_ui"),
         actionButton("add_group", "Add Group", class = "btn-default")
       )
     ),
 
-    # ── Middle: Segment editor ────────────────────────────────────────────
+    # ── Middle: editor ───────────────────────────────────────────────────
     column(3,
       wellPanel(
         h4("Edit Segment"),
@@ -140,7 +162,7 @@ ui <- fluidPage(
       )
     ),
 
-    # ── Right: Output preview ─────────────────────────────────────────────
+    # ── Right: preview ───────────────────────────────────────────────────
     column(4,
       wellPanel(
         tabsetPanel(
@@ -160,135 +182,161 @@ ui <- fluidPage(
   )
 )
 
-# ── Server ───────────────────────────────────────────────────────────────────
+# ── Server ────────────────────────────────────────────────────────────────────
 
 server <- function(input, output, session) {
 
-  # Reactive state
+  # ── Reactive state ────────────────────────────────────────────────────────
   segments <- reactiveVal(list(
-    list(type = "FIXED",   pattern = "CTACACGACGCTCTTCCGATCT", name = "primer",
-         bc_list_name = "", group = "", buffer_size = 2, max_edit_distance = 2),
-    list(type = "MATCHED", pattern = "NNNNNNNNNNNNNNNN",       name = "CB",
-         bc_list_name = "CB", group = "", buffer_size = 5, max_edit_distance = 2),
-    list(type = "RANDOM",  pattern = "NNNNNNNNNNNN",           name = "UB",
-         bc_list_name = "", group = "", buffer_size = 2, max_edit_distance = 2),
-    list(type = "FIXED",   pattern = "TTTTTTTTT",              name = "polyT",
-         bc_list_name = "", group = "", buffer_size = 2, max_edit_distance = 2)
+    list(uid = 1L, type = "FIXED",   pattern = "CTACACGACGCTCTTCCGATCT", name = "primer",
+         bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
+    list(uid = 2L, type = "MATCHED", pattern = "NNNNNNNNNNNNNNNN",       name = "CB",
+         bc_list_name = "CB", group = "", buffer_size = 5L, max_edit_distance = 2L),
+    list(uid = 3L, type = "RANDOM",  pattern = "NNNNNNNNNNNN",           name = "UB",
+         bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
+    list(uid = 4L, type = "FIXED",   pattern = "TTTTTTTTT",              name = "polyT",
+         bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L)
   ))
 
   barcode_groups <- reactiveVal(list())
-  selected_idx   <- reactiveVal(NULL)
+  next_uid       <- reactiveVal(5L)
+  selected_uid   <- reactiveVal(1L)
 
-  # ── Segment rank list ────────────────────────────────────────────────────
-  output$segment_rank_list <- renderUI({
+  # ── Segment card list — depends ONLY on segments(), never selected_uid() ──
+  #    Selection outline is managed by JavaScript to avoid re-render on click.
+  output$segment_cards <- renderUI({
     segs <- segments()
-    items <- lapply(seq_along(segs), function(i) make_segment_card(segs[[i]], i))
-    rank_list(
-      text       = NULL,
-      labels     = items,
-      input_id   = "segment_order",
-      css_id     = "segment_order_list",
-      class      = "default-sortable"
+    card_divs <- lapply(segs, make_segment_card)
+    tagList(
+      tags$div(id = "segment-card-list", card_divs),
+      # Re-attach sortable every time this renderUI runs (after segments() changes)
+      sortable_js(
+        "segment-card-list",
+        options = sortable_options(
+          onEnd = htmlwidgets::JS("function(evt) {
+            var items = document.getElementById('segment-card-list').children;
+            var uids = Array.from(items).map(function(el) {
+              return parseInt(el.getAttribute('data-uid'));
+            });
+            Shiny.setInputValue('segment_drag_order', uids, {priority: 'event'});
+          }")
+        )
+      )
     )
   })
 
-  # Reorder when drag-and-drop fires
-  observeEvent(input$segment_order, {
-    order_labels <- input$segment_order
-    if (is.null(order_labels)) return()
+  # After a re-render, re-apply the selection outline via JS message
+  observeEvent(segments(), {
+    session$sendCustomMessage("highlightCard", selected_uid())
+  }, ignoreInit = TRUE)
+
+  # ── Drag-and-drop reorder ─────────────────────────────────────────────────
+  observeEvent(input$segment_drag_order, {
+    # JS sends integer UIDs in new DOM order via parseInt — no regex needed
+    uids <- as.integer(input$segment_drag_order)
     segs <- segments()
-    # rank_list returns labels as character; we identify positions by card content
-    # Instead, we track order via the label index
-    new_order <- as.integer(order_labels)
+    current_uids <- vapply(segs, `[[`, 0L, "uid")
+    new_order    <- match(uids, current_uids)
     if (!anyNA(new_order) && length(new_order) == length(segs)) {
       segments(segs[new_order])
     }
-  }, ignoreInit = TRUE)
-
-  # ── Add segment ──────────────────────────────────────────────────────────
-  observeEvent(input$add_segment, {
-    type <- input$new_type
-    defaults <- TYPE_DEFAULTS[[type]]
-    new_seg <- c(list(type = type), defaults)
-    segs <- segments()
-    segs[[length(segs) + 1]] <- new_seg
-    segments(segs)
-    selected_idx(length(segs))
   })
 
-  # ── Editor: click on a segment to edit ───────────────────────────────────
-  # Because rank_list doesn't fire click events directly, we use numeric input for selection
+  # ── Click to select ───────────────────────────────────────────────────────
+  observeEvent(input$clicked_uid, {
+    selected_uid(input$clicked_uid)
+  })
+
+  # ── Add segment ───────────────────────────────────────────────────────────
+  observeEvent(input$add_segment, {
+    uid      <- next_uid()
+    next_uid(uid + 1L)
+    type     <- input$new_type
+    new_seg  <- c(list(uid = uid, type = type), TYPE_DEFAULTS[[type]])
+    segs     <- segments()
+    segs[[length(segs) + 1L]] <- new_seg
+    segments(segs)
+    selected_uid(uid)
+  })
+
+  # ── Editor panel ──────────────────────────────────────────────────────────
   output$editor_ui <- renderUI({
     segs <- segments()
-    if (length(segs) == 0) return(p("No segments."))
-
-    idx <- selected_idx()
-    if (is.null(idx) || idx > length(segs)) idx <- 1
-    s <- segs[[idx]]
+    if (length(segs) == 0L) return(p(style = "color:#888;", "No segments."))
+    uid <- selected_uid()
+    idx <- uid_to_idx(segs, uid)
+    s   <- segs[[idx]]
 
     tagList(
-      numericInput("edit_idx", "Select segment (index)", value = idx, min = 1, max = length(segs), step = 1),
-      tags$div(style = paste0("padding:4px 8px;border-radius:4px;background:", TYPE_COLORS[[s$type]], ";color:white;margin-bottom:8px;"),
-        strong(s$type), " — ", s$name),
-      selectInput("edit_type", "Type", choices = c("FIXED", "MATCHED", "RANDOM", "MATCHED_SPLIT"), selected = s$type),
-      textInput("edit_name", "Name", value = s$name),
+      tags$div(
+        style = paste0("padding:4px 8px;border-radius:4px;margin-bottom:10px;",
+                       "background:", TYPE_COLORS[[s$type]], ";color:white;"),
+        strong(paste0("[", idx, "/", length(segs), "]  ")),
+        strong(s$type), " — ", s$name
+      ),
+      selectInput("edit_type", "Type",
+        choices = c("FIXED", "MATCHED", "RANDOM", "MATCHED_SPLIT"), selected = s$type),
+      textInput("edit_name",    "Name",    value = s$name),
       textInput("edit_pattern", "Pattern", value = s$pattern),
       conditionalPanel("input.edit_type == 'MATCHED'",
-        textInput("edit_bc_list_name", "bc_list (key in barcodes_files)", value = s$bc_list_name)
+        textInput("edit_bc_list_name", "bc_list key (in barcodes_files)", value = s$bc_list_name)
       ),
       conditionalPanel("input.edit_type == 'MATCHED_SPLIT'",
         textInput("edit_group", "Group name", value = s$group)
       ),
       conditionalPanel("input.edit_type == 'MATCHED' || input.edit_type == 'MATCHED_SPLIT'",
-        numericInput("edit_buffer_size", "Buffer size", value = s$buffer_size, min = 0),
+        numericInput("edit_buffer_size",       "Buffer size",       value = s$buffer_size,       min = 0),
         numericInput("edit_max_edit_distance", "Max edit distance", value = s$max_edit_distance, min = 0)
       ),
       fluidRow(
-        column(6, actionButton("apply_edit", "Apply", class = "btn-success", width = "100%")),
-        column(6, actionButton("delete_segment", "Delete", class = "btn-danger", width = "100%"))
+        column(6, actionButton("apply_edit",     "Apply",  class = "btn-success", width = "100%")),
+        column(6, actionButton("delete_segment", "Delete", class = "btn-danger",  width = "100%"))
       )
     )
   })
 
-  observeEvent(input$edit_idx, {
-    selected_idx(as.integer(input$edit_idx))
-  })
-
   observeEvent(input$apply_edit, {
-    idx <- as.integer(input$edit_idx)
     segs <- segments()
-    if (idx < 1 || idx > length(segs)) return()
+    uid  <- selected_uid()
+    idx  <- uid_to_idx(segs, uid)
     type <- input$edit_type
     segs[[idx]] <- list(
-      type             = type,
-      name             = input$edit_name,
-      pattern          = input$edit_pattern,
-      bc_list_name     = if (type == "MATCHED") input$edit_bc_list_name else if (type == "MATCHED_SPLIT") input$edit_group else "",
-      group            = if (type == "MATCHED_SPLIT") input$edit_group else "",
-      buffer_size      = if (type %in% c("MATCHED", "MATCHED_SPLIT")) as.integer(input$edit_buffer_size) else 2L,
+      uid               = uid,
+      type              = type,
+      name              = input$edit_name,
+      pattern           = input$edit_pattern,
+      bc_list_name      = if (type == "MATCHED")       input$edit_bc_list_name
+                          else if (type == "MATCHED_SPLIT") input$edit_group
+                          else "",
+      group             = if (type == "MATCHED_SPLIT") input$edit_group else "",
+      buffer_size       = if (type %in% c("MATCHED", "MATCHED_SPLIT")) as.integer(input$edit_buffer_size)       else 2L,
       max_edit_distance = if (type %in% c("MATCHED", "MATCHED_SPLIT")) as.integer(input$edit_max_edit_distance) else 2L
     )
     segments(segs)
   })
 
   observeEvent(input$delete_segment, {
-    idx <- as.integer(input$edit_idx)
     segs <- segments()
-    if (length(segs) == 0) return()
+    uid  <- selected_uid()
+    idx  <- uid_to_idx(segs, uid)
     segs[[idx]] <- NULL
     segments(segs)
-    selected_idx(min(idx, length(segs)))
+    if (length(segs) > 0L) {
+      selected_uid(segs[[min(idx, length(segs))]]$uid)
+    }
   })
 
-  # ── Barcode groups ───────────────────────────────────────────────────────
+  # ── Barcode groups ────────────────────────────────────────────────────────
   output$group_list_ui <- renderUI({
     grps <- barcode_groups()
-    if (length(grps) == 0) return(p(style = "color:#888;", "No barcode groups."))
+    if (length(grps) == 0L) return(p(style = "color:#888;", "No barcode groups."))
     lapply(seq_along(grps), function(i) {
       g <- grps[[i]]
       tags$div(style = "display:flex;align-items:center;gap:8px;margin:4px 0;",
-        tags$span(style = "background:#FFA726;color:white;padding:3px 8px;border-radius:4px;font-size:12px;",
-          paste0(g$name, " → ", g$bc_list_name)),
+        tags$span(
+          style = "background:#FFA726;color:white;padding:3px 8px;border-radius:4px;font-size:12px;",
+          paste0(g$name, " → ", g$bc_list_name, " (ed≤", g$max_edit_distance, ")")
+        ),
         actionButton(paste0("del_group_", i), "×", class = "btn-xs btn-danger")
       )
     })
@@ -297,8 +345,8 @@ server <- function(input, output, session) {
   observeEvent(input$add_group, {
     showModal(modalDialog(
       title = "Add Barcode Group",
-      textInput("new_group_name", "Group name", value = "CB"),
-      textInput("new_group_bc_list", "bc_list_name", value = "CB"),
+      textInput("new_group_name",    "Group name",         value = "CB"),
+      textInput("new_group_bc_list", "bc_list_name",       value = "CB"),
       numericInput("new_group_max_ed", "Max edit distance", value = 2, min = 0),
       footer = tagList(
         modalButton("Cancel"),
@@ -309,7 +357,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$confirm_add_group, {
     grps <- barcode_groups()
-    grps[[length(grps) + 1]] <- list(
+    grps[[length(grps) + 1L]] <- list(
       name              = input$new_group_name,
       bc_list_name      = input$new_group_bc_list,
       max_edit_distance = as.integer(input$new_group_max_ed)
@@ -318,20 +366,18 @@ server <- function(input, output, session) {
     removeModal()
   })
 
-  # Delete group buttons (dynamic)
   observe({
     grps <- barcode_groups()
     lapply(seq_along(grps), function(i) {
-      btn_id <- paste0("del_group_", i)
-      observeEvent(input[[btn_id]], {
-        g2 <- barcode_groups()
+      observeEvent(input[[paste0("del_group_", i)]], {
+        g2      <- barcode_groups()
         g2[[i]] <- NULL
         barcode_groups(g2)
       }, ignoreInit = TRUE, once = TRUE)
     })
   })
 
-  # ── Global params helper ─────────────────────────────────────────────────
+  # ── Global params ─────────────────────────────────────────────────────────
   global_params <- reactive({
     list(
       max_flank_editdistance  = input$max_flank_editdistance,
@@ -343,21 +389,29 @@ server <- function(input, output, session) {
     )
   })
 
-  # ── JSON preview ─────────────────────────────────────────────────────────
+  # ── Previews ──────────────────────────────────────────────────────────────
   json_text <- reactive({
     segments_to_json(segments(), barcode_groups(), global_params())
   })
 
-  output$json_preview <- renderText({ json_text() })
+  output$json_preview  <- renderText({ json_text() })
 
   output$download_json <- downloadHandler(
     filename = "barcode_config.json",
     content  = function(f) writeLines(json_text(), f)
   )
 
-  # ── R code preview ───────────────────────────────────────────────────────
   output$r_preview <- renderText({
     segments_to_r(segments(), barcode_groups())
+  })
+
+  # ── Done ──────────────────────────────────────────────────────────────────
+  observeEvent(input$done, {
+    clean_segs <- lapply(segments(), function(s) { s$uid <- NULL; s })
+    shiny::stopApp(returnValue = list(
+      segments       = clean_segs,
+      barcode_groups = barcode_groups()
+    ))
   })
 }
 

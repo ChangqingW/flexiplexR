@@ -39,6 +39,7 @@ run_barcode_designer <- function(port = NULL, host = "127.0.0.1",
   }
   url <- sprintf("http://%s:%d", if (host == "0.0.0.0") "localhost" else host, port)
   message("Barcode designer running at: ", url)
-  message("Press Ctrl+C to stop.")
-  shiny::runApp(app_dir, port = port, host = host, launch.browser = launch.browser)
+  message("Press Ctrl+C to stop. Click 'Done' in the browser to return the configuration.")
+  result <- shiny::runApp(app_dir, port = port, host = host, launch.browser = launch.browser)
+  invisible(result)
 }
