@@ -1,0 +1,43 @@
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Rprofile
+*.Rproj
+
+# OS
+.ds_store
+*.DS_Store
+
+# Editors
+.vscode
+.idea
+
+# R package build artefacts
+inst/doc
+doc
+/doc/
+Meta
+/Meta/
+check
+docs/
+man/
+
+# Compiled C/C++ objects and shared libs
+src/*.o
+src/**/*.o
+src/*.so
+src/*.dll
+
+# basilisk / python caches
+**/__pycache__/
+**/*.pyc
+
+# Vignettes
+vignettes/*.html
+vignettes/*.R
+vignettes/.build.timestamp
+
+# Logs and stray files
+**/*.log
+**/.smbdelete*
