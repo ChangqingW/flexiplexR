@@ -19,6 +19,6 @@
 #' @return IntegerVector with read counts (total, demultiplexed, single match, chimera)
 #' @export
 flexiplex <- function(r_segments, r_barcode_groups, max_flank_editdistance, reads_in, reads_out, stats_out, bc_out, reverseCompliment, n_threads) {
-    .Call('_flexiplexR_flexiplex', PACKAGE = 'flexiplexR', r_segments, r_barcode_groups, max_flank_editdistance, reads_in, reads_out, stats_out, bc_out, reverseCompliment, n_threads)
+    .Call(`_flexiplexR_flexiplex`, r_segments, r_barcode_groups, max_flank_editdistance, reads_in, reads_out, stats_out, bc_out, reverseCompliment, n_threads)
 }
 

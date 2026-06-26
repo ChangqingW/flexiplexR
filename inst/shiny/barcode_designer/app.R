@@ -16,6 +16,29 @@ TYPE_DEFAULTS <- list(
   MATCHED_SPLIT = list(name = "BC1",     pattern = "NNNNNNNN",               bc_list_name = "", group = "CB", buffer_size = 2L, max_edit_distance = 2L)
 )
 
+# Default read structure used when no starting configuration is supplied
+# (10x 3'-end nanopore). Plain lists, no uid — uid is assigned on server init.
+DEFAULT_SEGMENTS <- list(
+  list(type = "FIXED",   pattern = "CTACACGACGCTCTTCCGATCT", name = "primer",
+       bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
+  list(type = "MATCHED", pattern = "NNNNNNNNNNNNNNNN",       name = "CB",
+       bc_list_name = "CB", group = "", buffer_size = 5L, max_edit_distance = 2L),
+  list(type = "RANDOM",  pattern = "NNNNNNNNNNNN",           name = "UB",
+       bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
+  list(type = "FIXED",   pattern = "TTTTTTTTT",              name = "polyT",
+       bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L)
+)
+
+# Global-parameter defaults, single source of truth for both UI and fallbacks.
+DEFAULT_PARAMS <- list(
+  max_flank_editdistance  = 8,
+  strand                  = "-",
+  TSO_seq                 = "AAGCAGTGGTATCAACGCAGAGTACATGGG",
+  TSO_prime               = 5,
+  cutadapt_minimum_length = 10,
+  full_length_only        = FALSE
+)
+
 # Card div — selection outline is applied by JS, not R
 make_segment_card <- function(seg) {
   tags$div(
@@ -104,6 +127,17 @@ segments_to_r <- function(segments, barcode_groups) {
 .preview_bcs     <- shiny::getShinyOption("flexiplexR_barcodes_files", NULL)
 .preview_enabled <- !is.null(.preview_fastq) && !is.null(.preview_bcs)
 
+# Starting configuration passed from run_barcode_designer() (NULL = defaults)
+.init_segments <- shiny::getShinyOption("flexiplexR_init_segments", NULL)
+.init_groups   <- shiny::getShinyOption("flexiplexR_init_groups",   NULL)
+.init_params   <- shiny::getShinyOption("flexiplexR_init_params",   NULL)
+
+# Global parameter value: from the supplied config if present, else the default
+.param <- function(name) {
+  v <- .init_params[[name]]
+  if (is.null(v)) DEFAULT_PARAMS[[name]] else v
+}
+
 preview_tab <- tabPanel("Preview",
   br(),
   if (!.preview_enabled) {
@@ -118,6 +152,9 @@ preview_tab <- tabPanel("Preview",
     br(), br(),
     uiOutput("preview_status"),
     tableOutput("preview_counts"),
+    h5("Full-length reads (adapter / cutadapt)"),
+    uiOutput("preview_cutadapt_status"),
+    tableOutput("preview_cutadapt"),
     h5("Example demultiplexed read headers"),
     verbatimTextOutput("preview_headers"),
     h5("Example stats rows"),
@@ -185,12 +222,17 @@ ui <- fluidPage(
         uiOutput("editor_ui"),
         hr(),
         h4("Global Parameters"),
-        numericInput("max_flank_editdistance", "Max flank edit distance", value = 8, min = 0),
-        selectInput("strand", "Strand", choices = c("+", "-"), selected = "-"),
-        textInput("TSO_seq", "TSO sequence", value = "AAGCAGTGGTATCAACGCAGAGTACATGGG"),
-        numericInput("TSO_prime", "TSO prime (3 or 5)", value = 5, min = 3, max = 5, step = 2),
-        numericInput("cutadapt_minimum_length", "Min length after TSO trim", value = 10, min = 0),
-        checkboxInput("full_length_only", "Full length only", value = FALSE)
+        numericInput("max_flank_editdistance", "Max flank edit distance", value = .param("max_flank_editdistance"), min = 0),
+        selectInput("strand", "Strand", choices = c("+", "-"), selected = .param("strand")),
+        # NOTE: the "TSO sequence" label is specific to 3' kits. This field is
+        # really the adapter on the far end of the read; cutadapt searches for it
+        # and the fraction of reads where it is found estimates the % of reads
+        # that are full-length. A generic name (e.g. "adapter 2" /
+        # "full-length adapter") would be clearer — left as-is for now by request.
+        textInput("TSO_seq", "TSO sequence", value = .param("TSO_seq")),
+        numericInput("TSO_prime", "TSO prime (3 or 5)", value = .param("TSO_prime"), min = 3, max = 5, step = 2),
+        numericInput("cutadapt_minimum_length", "Min length after TSO trim", value = .param("cutadapt_minimum_length"), min = 0),
+        checkboxInput("full_length_only", "Full length only", value = .param("full_length_only"))
       )
     ),
 
@@ -220,20 +262,17 @@ ui <- fluidPage(
 server <- function(input, output, session) {
 
   # ── Reactive state ────────────────────────────────────────────────────────
-  segments <- reactiveVal(list(
-    list(uid = 1L, type = "FIXED",   pattern = "CTACACGACGCTCTTCCGATCT", name = "primer",
-         bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
-    list(uid = 2L, type = "MATCHED", pattern = "NNNNNNNNNNNNNNNN",       name = "CB",
-         bc_list_name = "CB", group = "", buffer_size = 5L, max_edit_distance = 2L),
-    list(uid = 3L, type = "RANDOM",  pattern = "NNNNNNNNNNNN",           name = "UB",
-         bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L),
-    list(uid = 4L, type = "FIXED",   pattern = "TTTTTTTTT",              name = "polyT",
-         bc_list_name = "", group = "", buffer_size = 2L, max_edit_distance = 2L)
-  ))
+  #    Seed from the configuration passed to run_barcode_designer(), or the
+  #    default read structure. uid is assigned here (order = list order).
+  init_segs <- if (!is.null(.init_segments) && length(.init_segments) > 0)
+    .init_segments else DEFAULT_SEGMENTS
+  init_segs <- lapply(seq_along(init_segs), function(i) c(list(uid = i), init_segs[[i]]))
 
-  barcode_groups <- reactiveVal(list())
-  next_uid       <- reactiveVal(5L)
-  selected_uid   <- reactiveVal(1L)
+  segments <- reactiveVal(init_segs)
+
+  barcode_groups <- reactiveVal(if (!is.null(.init_groups)) .init_groups else list())
+  next_uid       <- reactiveVal(length(init_segs) + 1L)
+  selected_uid   <- reactiveVal(if (length(init_segs) > 0) init_segs[[1]]$uid else 1L)
 
   # ── Segment card list — depends ONLY on segments(), never selected_uid() ──
   #    Selection outline is managed by JavaScript to avoid re-render on click.
@@ -492,9 +531,11 @@ server <- function(input, output, session) {
         output$preview_status <- renderUI(
           div(style = "color:#c00;", strong("Error: "), res$message)
         )
-        output$preview_counts  <- renderTable(NULL)
-        output$preview_headers <- renderText("")
-        output$preview_stats   <- renderTable(NULL)
+        output$preview_counts          <- renderTable(NULL)
+        output$preview_cutadapt_status <- renderUI(NULL)
+        output$preview_cutadapt        <- renderTable(NULL)
+        output$preview_headers         <- renderText("")
+        output$preview_stats           <- renderTable(NULL)
         return()
       }
 
@@ -511,6 +552,32 @@ server <- function(input, output, session) {
                    value  = c(as.integer(rc), rate)),
         striped = TRUE, rownames = FALSE
       )
+
+      # Full-length estimate from cutadapt: fraction of demultiplexed reads in
+      # which the far-end adapter (the "TSO sequence" field) was found.
+      fl <- flexiplexR:::.cutadapt_fulllength(res$cutadapt)
+      if (is.null(fl)) {
+        output$preview_cutadapt_status <- renderUI(
+          helpText("Provide a TSO / adapter-2 sequence to estimate the full-length read %.")
+        )
+        output$preview_cutadapt <- renderTable(NULL)
+      } else {
+        output$preview_cutadapt_status <- renderUI(
+          div(style = "color:#2e7d32;",
+              sprintf("%d/%d demultiplexed reads contain the adapter — %.2f%% full-length.",
+                      fl$with_adapter, fl$input, fl$rate))
+        )
+        output$preview_cutadapt <- renderTable(
+          data.frame(
+            metric = c("reads into cutadapt (demultiplexed)",
+                       "reads with adapter (full-length)",
+                       "reads kept (after min-length)",
+                       "full-length rate (%)"),
+            value  = c(fl$input, fl$with_adapter, fl$output, fl$rate)
+          ),
+          striped = TRUE, rownames = FALSE
+        )
+      }
 
       hdr_lines <- tryCatch(readLines(tmp_out, n = 20), error = function(e) character(0))
       headers   <- if (length(hdr_lines) >= 1)

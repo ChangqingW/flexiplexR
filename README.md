@@ -1,6 +1,9 @@
 # flexiplexR
 
-R port of [flexiplex](https://davidsongroup.github.io/flexiplex/), with GUI barcode specification and demultiplex rate preview.
+R port of [flexiplex](https://davidsongroup.github.io/flexiplex/), with GUI barcode specification and demultiplex rate preview (implemented using AI).
+
+> [!NOTE]
+> This package contains AI generated code.
 
 ## Interactive designer
 
@@ -46,6 +49,11 @@ find_barcode(
 
 res <- run_barcode_designer()
 find_barcode(fastq = "reads.fq.gz", segments = res$segments, barcodes_files = "barcodes_allow.tsv.gz", ...)
+
+# The designer can also start from an existing config (FLAMES or exported JSON),
+# or from segment/group lists, so you can tweak rather than rebuild:
+res <- run_barcode_designer(config = "5prime_config.json")
+res <- run_barcode_designer(segments = segments)
 
 
 # Or load a JSON config:
